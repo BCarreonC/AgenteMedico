@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+
+langgraph
+langchain
+langchain-openai
+
+httpx
+
+pydantic
+
+python-dotenv
+
+typing_extensions
+
+langchain-ollama
+langchain-chroma
