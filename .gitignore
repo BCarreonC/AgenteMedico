@@ -3,6 +3,7 @@
 /node_modules
 /build
 *.zip
+/app
 
 # Logs
 logs
@@ -55,3 +56,27 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+*.py[cod]
+*$py.class
+
+# ChromaDB local
+chroma/
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Editores
+.vscode/
+.idea/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

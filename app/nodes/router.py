@@ -1,30 +1,42 @@
 from app.graph.state import AgentState
+from app.utils.logger import get_logger
 
 
-async def router(state: AgentState):
+logger = get_logger("router")
+
+
+async def router(
+    state: AgentState,
+) -> AgentState:
+    request_id = state.get("request_id", "sin-request-id")
+    intent = state.get("intent", "")
 
     routes = {
-
-        "search_patient":"patients",
-
-        "create_patient":"patients",
-
-        "schedule_appointment":"appointments",
-
-        "cancel_appointment":"appointments",
-
-        "reschedule_appointment":"appointments",
-
-        "create_consultation":"consultations",
-
-        "search_consultation":"consultations",
-
-        "send_notification":"notifications",
-
-        "search_document":"rag"
-
+        "search_patient": "patients",
+        "check_appointment_availability":
+            "appointments",
+        "schedule_appointment":
+            "appointments",
+        "search_document": "rag",
     }
 
-    state["tool"] = routes.get(state["intent"])
+    selected_tool = routes.get(intent)
+    state["tool"] = selected_tool
+
+    logger.info(
+        "[%s] ROUTER intent=%s -> tool=%s",
+        request_id,
+        intent,
+        selected_tool,
+    )
+
+    if selected_tool is None:
+        logger.warning(
+            "[%s] ROUTER no encontró herramienta para intent=%s. "
+            "errors=%s",
+            request_id,
+            intent,
+            state.get("errors", []),
+        )
 
     return state

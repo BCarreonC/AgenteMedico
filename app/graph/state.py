@@ -3,6 +3,7 @@ from typing_extensions import TypedDict
 
 
 class AgentState(TypedDict):
+    request_id: str
 
     message: str
 

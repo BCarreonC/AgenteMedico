@@ -1,17 +1,15 @@
 fastapi
-uvicorn
+uvicorn[standard]
 
 langgraph
 langchain
 langchain-openai
+langchain-ollama
+langchain-chroma
 
 httpx
 
 pydantic
-
+pydantic-settings
 python-dotenv
-
 typing_extensions
-
-langchain-ollama
-langchain-chroma
