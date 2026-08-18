@@ -266,3 +266,6 @@ Proyecto desarrollado con fines educativos y de investigación.
 **Benjamín Carreón**
 
 Proyecto desarrollado como parte del sistema **Agente Médico**, una plataforma de inteligencia artificial para la administración de consultorios médicos basada en FastAPI, LangGraph y Ollama.
+## Gestión de citas ampliada
+
+Las intenciones nuevas y sus pruebas están documentadas en [APPOINTMENTS_IMPLEMENTATION.md](APPOINTMENTS_IMPLEMENTATION.md) y `tests/manual`.
