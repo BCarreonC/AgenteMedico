@@ -15,8 +15,13 @@ async def router(
         "search_patient": "patients",
         "check_appointment_availability":
             "appointments",
-        "schedule_appointment":
-            "appointments",
+        "schedule_appointment": "appointments",
+        "list_appointments": "appointments",
+        "cancel_appointment": "appointments",
+        "reschedule_appointment": "appointments",
+        "confirm_appointment": "appointments",
+        "complete_appointment": "appointments",
+        "mark_appointment_no_show": "appointments",
         "search_document": "rag",
     }
 

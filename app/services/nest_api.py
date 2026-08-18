@@ -19,9 +19,7 @@ class NestAPIError(RuntimeError):
 
 class NestAPIClient:
     def __init__(self) -> None:
-        self.base_url = (
-            settings.NEST_API.rstrip("/")
-        )
+        self.base_url = settings.NEST_API.rstrip("/")
         self.timeout = 15.0
 
         logger.info(
@@ -35,111 +33,80 @@ class NestAPIClient:
         endpoint: str,
         params: dict[str, Any] | None = None,
     ) -> Any:
-        url = self._build_url(endpoint)
-
-        logger.info(
-            "HTTP GET %s params=%s",
-            url,
-            compact(params or {}, 2000),
+        return await self._request(
+            "GET",
+            endpoint,
+            params=params,
         )
-
-        try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-            ) as client:
-                response = await client.get(
-                    url,
-                    params=params,
-                )
-
-            logger.info(
-                "HTTP GET %s -> status=%s",
-                str(response.request.url),
-                response.status_code,
-            )
-            logger.debug(
-                "HTTP GET response body=%s",
-                compact(response.text, 6000),
-            )
-
-            response.raise_for_status()
-            return response.json()
-
-        except httpx.HTTPStatusError as exc:
-            detail = self._get_error_detail(
-                exc.response,
-            )
-
-            logger.error(
-                "NestJS respondió con error. url=%s status=%s "
-                "detail=%s",
-                exc.request.url,
-                exc.response.status_code,
-                detail,
-            )
-
-            raise NestAPIError(
-                f"NestJS respondió "
-                f"{exc.response.status_code}: "
-                f"{detail}"
-            ) from exc
-
-        except httpx.RequestError as exc:
-            logger.exception(
-                "Error de conexión con NestJS. url=%s cadena=%s",
-                url,
-                exception_chain(exc),
-            )
-
-            raise NestAPIError(
-                "No fue posible conectar con "
-                f"NestJS en {self.base_url}."
-            ) from exc
-
-        except ValueError as exc:
-            logger.exception(
-                "NestJS respondió contenido que no es JSON. "
-                "url=%s cadena=%s",
-                url,
-                exception_chain(exc),
-            )
-            raise NestAPIError(
-                "NestJS devolvió una respuesta que no es JSON."
-            ) from exc
 
     async def post(
         self,
         endpoint: str,
         body: dict[str, Any],
     ) -> Any:
+        return await self._request(
+            "POST",
+            endpoint,
+            body=body,
+        )
+
+    async def patch(
+        self,
+        endpoint: str,
+        body: dict[str, Any] | None = None,
+    ) -> Any:
+        return await self._request(
+            "PATCH",
+            endpoint,
+            body=body or {},
+        )
+
+    async def _request(
+        self,
+        method: str,
+        endpoint: str,
+        *,
+        params: dict[str, Any] | None = None,
+        body: dict[str, Any] | None = None,
+    ) -> Any:
         url = self._build_url(endpoint)
 
         logger.info(
-            "HTTP POST %s body=%s",
+            "HTTP %s %s params=%s body=%s",
+            method,
             url,
-            compact(body, 5000),
+            compact(params or {}, 2000),
+            compact(body or {}, 5000),
         )
 
         try:
             async with httpx.AsyncClient(
                 timeout=self.timeout,
             ) as client:
-                response = await client.post(
+                response = await client.request(
+                    method,
                     url,
-                    json=body,
+                    params=params,
+                    json=body if body is not None else None,
                 )
 
             logger.info(
-                "HTTP POST %s -> status=%s",
+                "HTTP %s %s -> status=%s",
+                method,
                 str(response.request.url),
                 response.status_code,
             )
             logger.debug(
-                "HTTP POST response body=%s",
-                compact(response.text, 6000),
+                "HTTP %s response body=%s",
+                method,
+                compact(response.text, 7000),
             )
 
             response.raise_for_status()
+
+            if response.status_code == 204 or not response.content:
+                return None
+
             return response.json()
 
         except httpx.HTTPStatusError as exc:
@@ -148,8 +115,9 @@ class NestAPIClient:
             )
 
             logger.error(
-                "NestJS respondió con error. url=%s status=%s "
-                "detail=%s",
+                "NestJS respondió con error. method=%s url=%s "
+                "status=%s detail=%s",
+                method,
                 exc.request.url,
                 exc.response.status_code,
                 detail,
@@ -163,7 +131,8 @@ class NestAPIClient:
 
         except httpx.RequestError as exc:
             logger.exception(
-                "Error de conexión con NestJS. url=%s cadena=%s",
+                "Error de conexión con NestJS. method=%s url=%s cadena=%s",
+                method,
                 url,
                 exception_chain(exc),
             )
@@ -176,7 +145,8 @@ class NestAPIClient:
         except ValueError as exc:
             logger.exception(
                 "NestJS respondió contenido que no es JSON. "
-                "url=%s cadena=%s",
+                "method=%s url=%s cadena=%s",
+                method,
                 url,
                 exception_chain(exc),
             )
@@ -190,18 +160,9 @@ class NestAPIClient:
     ) -> list[dict[str, Any]]:
         result = await self.get(
             "/patients/search",
-            params={
-                "name": name,
-            },
+            params={"name": name},
         )
-
-        if not isinstance(result, list):
-            raise NestAPIError(
-                "La búsqueda de pacientes devolvió "
-                "un formato inesperado."
-            )
-
-        return result
+        return self._expect_list(result, "La búsqueda de pacientes")
 
     async def search_doctors(
         self,
@@ -209,18 +170,9 @@ class NestAPIClient:
     ) -> list[dict[str, Any]]:
         result = await self.get(
             "/doctors/search",
-            params={
-                "name": name,
-            },
+            params={"name": name},
         )
-
-        if not isinstance(result, list):
-            raise NestAPIError(
-                "La búsqueda de médicos devolvió "
-                "un formato inesperado."
-            )
-
-        return result
+        return self._expect_list(result, "La búsqueda de médicos")
 
     async def get_appointment_availability(
         self,
@@ -233,18 +185,10 @@ class NestAPIClient:
             params={
                 "doctorId": doctor_id,
                 "date": date,
-                "durationMinutes":
-                    duration_minutes,
+                "durationMinutes": duration_minutes,
             },
         )
-
-        if not isinstance(result, dict):
-            raise NestAPIError(
-                "La disponibilidad devolvió "
-                "un formato inesperado."
-            )
-
-        return result
+        return self._expect_dict(result, "La disponibilidad")
 
     async def create_appointment(
         self,
@@ -254,23 +198,142 @@ class NestAPIClient:
             "/appointments",
             body,
         )
+        return self._expect_dict(result, "La creación de la cita")
 
-        if not isinstance(result, dict):
-            raise NestAPIError(
-                "La creación de la cita devolvió "
-                "un formato inesperado."
-            )
+    async def list_appointments(
+        self,
+        *,
+        patient_id: str | None = None,
+        doctor_id: str | None = None,
+        date: str | None = None,
+        status: str | None = None,
+        pending: bool | None = None,
+        upcoming: bool | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
 
-        return result
+        optional_params = {
+            "patientId": patient_id,
+            "doctorId": doctor_id,
+            "date": date,
+            "status": status,
+            "pending": pending,
+            "upcoming": upcoming,
+        }
+
+        params.update(
+            {
+                key: value
+                for key, value in optional_params.items()
+                if value is not None
+            }
+        )
+
+        result = await self.get(
+            "/appointments",
+            params=params,
+        )
+        return self._expect_list(result, "La consulta de citas")
+
+    async def get_appointment(
+        self,
+        appointment_id: str,
+    ) -> dict[str, Any]:
+        result = await self.get(
+            f"/appointments/{appointment_id}",
+        )
+        return self._expect_dict(result, "La consulta de la cita")
+
+    async def cancel_appointment(
+        self,
+        appointment_id: str,
+        cancellation_reason: str | None = None,
+    ) -> dict[str, Any]:
+        body = {}
+        if cancellation_reason:
+            body["cancellationReason"] = cancellation_reason
+
+        result = await self.patch(
+            f"/appointments/{appointment_id}/cancel",
+            body,
+        )
+        return self._expect_dict(result, "La cancelación de la cita")
+
+    async def reschedule_appointment(
+        self,
+        appointment_id: str,
+        *,
+        date: str,
+        start_time: str,
+        duration_minutes: int,
+    ) -> dict[str, Any]:
+        result = await self.patch(
+            f"/appointments/{appointment_id}/reschedule",
+            {
+                "date": date,
+                "startTime": start_time,
+                "durationMinutes": duration_minutes,
+            },
+        )
+        return self._expect_dict(result, "La reprogramación de la cita")
+
+    async def confirm_appointment(
+        self,
+        appointment_id: str,
+    ) -> dict[str, Any]:
+        result = await self.patch(
+            f"/appointments/{appointment_id}/confirm",
+        )
+        return self._expect_dict(result, "La confirmación de la cita")
+
+    async def complete_appointment(
+        self,
+        appointment_id: str,
+    ) -> dict[str, Any]:
+        result = await self.patch(
+            f"/appointments/{appointment_id}/complete",
+        )
+        return self._expect_dict(result, "La finalización de la cita")
+
+    async def mark_appointment_no_show(
+        self,
+        appointment_id: str,
+    ) -> dict[str, Any]:
+        result = await self.patch(
+            f"/appointments/{appointment_id}/no-show",
+        )
+        return self._expect_dict(result, "El registro de inasistencia")
 
     def _build_url(
         self,
         endpoint: str,
     ) -> str:
-        return (
-            f"{self.base_url}/"
-            f"{endpoint.lstrip('/')}"
-        )
+        return f"{self.base_url}/{endpoint.lstrip('/')}"
+
+    @staticmethod
+    def _expect_list(
+        result: Any,
+        operation: str,
+    ) -> list[dict[str, Any]]:
+        if not isinstance(result, list):
+            raise NestAPIError(
+                f"{operation} devolvió un formato inesperado."
+            )
+
+        return result
+
+    @staticmethod
+    def _expect_dict(
+        result: Any,
+        operation: str,
+    ) -> dict[str, Any]:
+        if not isinstance(result, dict):
+            raise NestAPIError(
+                f"{operation} devolvió un formato inesperado."
+            )
+
+        return result
 
     @staticmethod
     def _get_error_detail(
@@ -280,15 +343,10 @@ class NestAPIClient:
             payload = response.json()
 
             if isinstance(payload, dict):
-                message = payload.get(
-                    "message",
-                )
+                message = payload.get("message")
 
                 if isinstance(message, list):
-                    return "; ".join(
-                        str(item)
-                        for item in message
-                    )
+                    return "; ".join(str(item) for item in message)
 
                 if message:
                     return str(message)
@@ -296,7 +354,4 @@ class NestAPIClient:
             return str(payload)
 
         except ValueError:
-            return (
-                response.text
-                or "Error sin detalle"
-            )
+            return response.text or "Error sin detalle"

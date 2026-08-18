@@ -6,6 +6,7 @@ from pydantic_settings import (
 
 class Settings(BaseSettings):
     NEST_API: str = "http://127.0.0.1:3000/api"
+    APP_TIMEZONE: str = "America/Mexico_City"
 
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
     OLLAMA_MODEL: str = "qwen3:8b"
