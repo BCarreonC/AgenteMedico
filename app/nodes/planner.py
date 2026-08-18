@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 
 from langchain_core.output_parsers import JsonOutputParser
@@ -30,6 +31,12 @@ ALLOWED_INTENTS = {
     "search_patient",
     "check_appointment_availability",
     "schedule_appointment",
+    "list_appointments",
+    "cancel_appointment",
+    "reschedule_appointment",
+    "confirm_appointment",
+    "complete_appointment",
+    "mark_appointment_no_show",
     "search_document",
     "greeting",
     "unknown",
@@ -39,15 +46,21 @@ INTENT_ALIASES = {
     "saludo": "greeting",
     "hello": "greeting",
     "buscar_paciente": "search_patient",
-    "consultar_disponibilidad":
-        "check_appointment_availability",
-    "check_availability":
-        "check_appointment_availability",
-    "appointment_availability":
-        "check_appointment_availability",
+    "consultar_disponibilidad": "check_appointment_availability",
+    "check_availability": "check_appointment_availability",
+    "appointment_availability": "check_appointment_availability",
     "agendar_cita": "schedule_appointment",
     "crear_cita": "schedule_appointment",
     "create_appointment": "schedule_appointment",
+    "consultar_citas": "list_appointments",
+    "listar_citas": "list_appointments",
+    "cancelar_cita": "cancel_appointment",
+    "reprogramar_cita": "reschedule_appointment",
+    "confirmar_cita": "confirm_appointment",
+    "completar_cita": "complete_appointment",
+    "marcar_atendida": "complete_appointment",
+    "no_se_presento": "mark_appointment_no_show",
+    "no_show": "mark_appointment_no_show",
 }
 
 
@@ -82,8 +95,7 @@ async def planner(
         )
 
     current_date = (
-        datetime.now()
-        .astimezone()
+        datetime.now(ZoneInfo(settings.APP_TIMEZONE))
         .date()
         .isoformat()
     )
@@ -257,45 +269,78 @@ def normalize_entities(
         "duration": "duration_minutes",
         "durationMinutes": "duration_minutes",
         "motivo": "reason",
+        "appointmentId": "appointment_id",
+        "cita_id": "appointment_id",
+        "currentDate": "current_date",
+        "oldDate": "current_date",
+        "originalDate": "current_date",
+        "currentStartTime": "current_start_time",
+        "oldStartTime": "current_start_time",
+        "originalStartTime": "current_start_time",
+        "newDate": "new_date",
+        "targetDate": "new_date",
+        "newStartTime": "new_start_time",
+        "targetStartTime": "new_start_time",
+        "cancellationReason": "cancellation_reason",
+        "cancelReason": "cancellation_reason",
     }
 
     normalized: dict[str, Any] = {}
 
     for key, value in entities.items():
-        normalized_key = aliases.get(
-            key,
-            key,
-        )
+        normalized_key = aliases.get(key, key)
         normalized[normalized_key] = value
 
     if intent == "search_patient":
-        name = (
-            normalized.get("name")
-            or normalized.get(
-                "patient_name",
-            )
-        )
+        name = normalized.get("name") or normalized.get("patient_name")
+        return {"name": str(name).strip()} if name else {}
 
-        return (
-            {
-                "name": str(name).strip(),
-            }
-            if name
-            else {}
-        )
+    if intent == "reschedule_appointment":
+        if not normalized.get("new_date") and normalized.get("date"):
+            normalized["new_date"] = normalized.pop("date")
+
+        if not normalized.get("new_start_time") and normalized.get("start_time"):
+            normalized["new_start_time"] = normalized.pop("start_time")
 
     if "duration_minutes" in normalized:
         try:
             normalized["duration_minutes"] = int(
                 normalized["duration_minutes"]
             )
-        except (
-            TypeError,
-            ValueError,
+        except (TypeError, ValueError):
+            normalized.pop("duration_minutes", None)
+
+    for boolean_key in ("upcoming", "pending"):
+        if boolean_key in normalized and isinstance(
+            normalized[boolean_key],
+            str,
         ):
-            normalized.pop(
-                "duration_minutes",
-                None,
-            )
+            normalized[boolean_key] = normalized[boolean_key].strip().lower() in {
+                "true",
+                "1",
+                "yes",
+                "si",
+                "sí",
+            }
+
+    if "status" in normalized:
+        status_aliases = {
+            "programada": "scheduled",
+            "programado": "scheduled",
+            "pendiente": "scheduled",
+            "confirmada": "confirmed",
+            "confirmado": "confirmed",
+            "cancelada": "cancelled",
+            "cancelado": "cancelled",
+            "completada": "completed",
+            "completado": "completed",
+            "atendida": "completed",
+            "atendido": "completed",
+            "no se presentó": "no_show",
+            "no se presento": "no_show",
+            "inasistencia": "no_show",
+        }
+        raw_status = str(normalized["status"]).strip().lower()
+        normalized["status"] = status_aliases.get(raw_status, raw_status)
 
     return normalized

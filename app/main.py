@@ -52,6 +52,7 @@ async def check_dependency(
 async def lifespan(_: FastAPI):
     logger.info("========== INICIANDO MEDICAL AGENT ==========")
     logger.info("NEST_API=%s", settings.NEST_API)
+    logger.info("APP_TIMEZONE=%s", settings.APP_TIMEZONE)
     logger.info("OLLAMA_BASE_URL=%s", settings.OLLAMA_BASE_URL)
     logger.info("OLLAMA_MODEL=%s", settings.OLLAMA_MODEL)
 
