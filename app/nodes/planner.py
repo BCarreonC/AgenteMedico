@@ -1,6 +1,8 @@
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Any
+
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_ollama import ChatOllama
@@ -12,11 +14,12 @@ from app.utils.logger import (
     compact,
     exception_chain,
     get_logger,
+    elapsed_ms,
+    log_text,
+    pretty_log,
 )
 
-
 logger = get_logger("planner")
-
 
 llm = ChatOllama(
     model=settings.OLLAMA_MODEL,
@@ -63,11 +66,24 @@ INTENT_ALIASES = {
     "no_show": "mark_appointment_no_show",
 }
 
+def _ollama_duration_ms(
+    metadata: dict[str, Any],
+    key: str,
+) -> float | None:
+    """Convierte duraciones de Ollama (nanosegundos) a ms."""
+    value = metadata.get(key)
+
+    if not isinstance(value, (int, float)):
+        return None
+
+    return value / 1_000_000
 
 async def planner(
     state: AgentState,
 ) -> AgentState:
     request_id = state.get("request_id", "sin-request-id")
+
+    planner_started_at = time.perf_counter()
 
     logger.info(
         "[%s] PLANNER iniciado. model=%s base_url=%s",
@@ -129,8 +145,54 @@ MENSAJE ACTUAL:
             request_id,
         )
 
+        ollama_started_at = time.perf_counter()
+
         result = await llm.ainvoke(
             prompt,
+        )
+
+        ollama_elapsed_ms = elapsed_ms(ollama_started_at)
+
+        raw_response_metadata = getattr(
+            result,
+            "response_metadata",
+            {},
+        )
+
+        response_metadata = (
+            raw_response_metadata
+            if isinstance(raw_response_metadata, dict)
+            else {}
+        )
+
+        logger.info(
+            "[%s] [PERF] ollama.invoke wall_ms=%.2f "
+            "ollama_total_ms=%s load_ms=%s prompt_eval_ms=%s "
+            "eval_ms=%s prompt_tokens=%s output_tokens=%s model=%s",
+            request_id,
+            ollama_elapsed_ms,
+            _ollama_duration_ms(
+                response_metadata,
+                "total_duration",
+            ),
+            _ollama_duration_ms(
+                response_metadata,
+                "load_duration",
+            ),
+            _ollama_duration_ms(
+                response_metadata,
+                "prompt_eval_duration",
+            ),
+            _ollama_duration_ms(
+                response_metadata,
+                "eval_duration",
+            ),
+            response_metadata.get("prompt_eval_count"),
+            response_metadata.get("eval_count"),
+            response_metadata.get(
+                "model",
+                settings.OLLAMA_MODEL,
+            ),
         )
 
         logger.info(
@@ -139,9 +201,12 @@ MENSAJE ACTUAL:
             type(result).__name__,
         )
         logger.debug(
-            "[%s] Respuesta cruda del LLM=%s",
+            "[%s] Respuesta cruda del LLM=\n%s",
             request_id,
-            compact(result.content, 6000),
+            log_text(
+                result.content,
+                6000,
+            ),
         )
 
         data = parser.invoke(
@@ -149,9 +214,12 @@ MENSAJE ACTUAL:
         )
 
         logger.debug(
-            "[%s] JSON parseado=%s",
+            "[%s] JSON parseado=\n%s",
             request_id,
-            compact(data, 4000),
+            pretty_log(
+                data, 
+                4000
+            ),
         )
 
         raw_intent = str(
@@ -200,7 +268,7 @@ MENSAJE ACTUAL:
             confidence = float(
                 data.get(
                     "confidence",
-                    0,
+                    0.0,
                 )
             )
         except (
@@ -208,6 +276,31 @@ MENSAJE ACTUAL:
             ValueError,
         ):
             confidence = 0.0
+        
+        state["intent"] = intent
+
+        state["confidence"] = max(
+            0.0,
+            min(
+                confidence,
+                1.0,
+            ),
+        )
+
+        state["entities"] = entities
+        state["tool_input"] = entities
+
+        logger.info(
+            "[%s] PLANNER terminado. intent=%s confidence=%.2f\n"
+            "entities=\n%s",
+            request_id,
+            state["intent"],
+            state["confidence"],
+            pretty_log(
+                state["entities"],
+                3000,
+            ),
+        )
 
         state["intent"] = intent
         state["confidence"] = max(
@@ -216,15 +309,6 @@ MENSAJE ACTUAL:
         )
         state["entities"] = entities
         state["tool_input"] = entities
-
-        logger.info(
-            "[%s] PLANNER terminado. intent=%s "
-            "confidence=%.2f entities=%s",
-            request_id,
-            state["intent"],
-            state["confidence"],
-            compact(state["entities"], 3000),
-        )
 
     except Exception as exc:
         logger.exception(
@@ -249,6 +333,17 @@ MENSAJE ACTUAL:
         state["confidence"] = 0.0
         state["entities"] = {}
         state["tool_input"] = {}
+
+    finally:
+        logger.info(
+            "[%s] [PERF] planner.total "
+            "elapsed_ms=%.2f prompt_chars=%s",
+            request_id,
+            elapsed_ms(
+                planner_started_at,
+            ),
+            len(prompt),
+        )
 
     return state
 

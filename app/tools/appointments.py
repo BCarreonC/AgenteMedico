@@ -10,6 +10,7 @@ from app.utils.logger import (
     compact,
     exception_chain,
     get_logger,
+    pretty_log,
 )
 
 
@@ -39,9 +40,12 @@ class AppointmentsTool:
         action = str(data.get("action", "")).strip()
 
         logger.info(
-            "AppointmentsTool.execute action=%s data=%s",
+            "AppointmentsTool.execute action=%s\ndata=\n%s",
             action,
-            compact(data, 7000),
+            pretty_log(
+                data,
+                4000,
+            ),
         )
 
         actions: dict[

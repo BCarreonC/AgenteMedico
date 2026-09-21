@@ -1,3 +1,4 @@
+import time
 from langgraph.graph import END, StateGraph
 
 from app.graph.state import AgentState
@@ -8,7 +9,12 @@ from app.nodes.responder import responder
 from app.nodes.router import router
 from app.tools.appointments import AppointmentsTool
 from app.tools.patients import PatientsTool
-from app.utils.logger import compact, get_logger
+from app.utils.logger import (
+    compact,
+    elapsed_ms,
+    get_logger,
+    pretty_log,
+)
 
 
 logger = get_logger("graph")
@@ -20,7 +26,12 @@ appointments = AppointmentsTool()
 async def tool_node(
     state: AgentState,
 ) -> AgentState:
+    
     request_id = state.get("request_id", "sin-request-id")
+    tool = state.get("tool")
+
+    started_at = time.perf_counter()
+
     tool = state.get("tool")
 
     tool_input = {
@@ -35,40 +46,58 @@ async def tool_node(
     }
 
     logger.info(
-        "[%s] TOOL_NODE iniciado. tool=%s input=%s",
+        "[%s] TOOL_NODE iniciado. tool=%s\n input=%s\n",
         request_id,
         tool,
-        compact(tool_input, 4000),
+        pretty_log(
+            tool_input,
+            4000
+        ),
     )
-
-    if tool == "patients":
-        state["tool_result"] = (
-            await patients.execute(
-                state.get(
-                    "tool_input",
-                    {},
+    try:
+        if tool == "patients":
+            state["tool_result"] = (
+                await patients.execute(
+                    state.get(
+                        "tool_input",
+                        {},
+                    )
                 )
             )
-        )
 
-    elif tool == "appointments":
-        state["tool_result"] = (
-            await appointments.execute(
-                tool_input,
+        elif tool == "appointments":
+            state["tool_result"] = (
+                await appointments.execute(
+                    tool_input,
+                )
             )
+
+        else:
+            state["tool_result"] = {
+                "ok": False,
+                "message": "Herramienta no encontrada.",
+            }
+    finally:
+        result = state.get(
+            "tool_result",
         )
 
-    else:
-        state["tool_result"] = {
-            "ok": False,
-            "message": "Herramienta no encontrada.",
-        }
+        tool_ok = (
+            result.get("ok")
+            if isinstance(result, dict)
+            else None
+        )
 
-    logger.info(
-        "[%s] TOOL_NODE terminado. result=%s",
-        request_id,
-        compact(state.get("tool_result"), 7000),
-    )
+        logger.info(
+            "[%s] [PERF] tool.execute "
+            "elapsed_ms=%.2f tool=%s "
+            "intent=%s ok=%s",
+            request_id,
+            elapsed_ms(started_at),
+            tool,
+            state.get("intent"),
+            tool_ok,
+        )
 
     return state
 
