@@ -13,6 +13,10 @@ from app.utils.logger import (
     get_logger,
     pretty_log,
 )
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from app.config.settings import settings
 
 
 logger = get_logger("appointments_tool")
@@ -184,6 +188,16 @@ class AppointmentsTool:
 
         if not self._is_valid_date(date):
             return self._invalid_date()
+
+        if self._is_past_date(date):
+            return {
+                "ok": False,
+                "error": "past_date",
+                "message": (
+                    "No es posible agendar una cita "
+                    "en una fecha pasada."
+                ),
+            }
 
         if not self._is_valid_time(start_time):
             return self._invalid_time()
@@ -383,6 +397,16 @@ class AppointmentsTool:
 
         if not self._is_valid_date(new_date):
             return self._invalid_date("La nueva fecha")
+
+        if self._is_past_date(new_date):
+            return {
+                "ok": False,
+                "error": "past_date",
+                "message": (
+                    "No es posible reprogramar una cita "
+                    "a una fecha pasada."
+                ),
+            }
 
         if not self._is_valid_time(new_start_time):
             return self._invalid_time("La nueva hora")
@@ -834,3 +858,18 @@ class AppointmentsTool:
                 "La duración debe ser un número entre 15 y 240 minutos."
             ),
         }
+
+    @staticmethod
+    def _is_past_date(
+        value: str,
+    ) -> bool:
+        requested_date = datetime.strptime(
+            value,
+            "%Y-%m-%d",
+        ).date()
+
+        today = datetime.now(
+            ZoneInfo(settings.APP_TIMEZONE)
+        ).date()
+
+        return requested_date < today
