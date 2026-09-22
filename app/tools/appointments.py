@@ -1,4 +1,5 @@
 import re
+import asyncio
 import unicodedata
 from typing import Any, Awaitable, Callable
 
@@ -192,11 +193,22 @@ class AppointmentsTool:
         if duration is None:
             return self._invalid_duration()
 
-        doctor, doctor_error = await self._resolve_doctor(doctor_name)
+        # Resolve doctor and patient concurrently
+        doctor_result, patient_result = await asyncio.gather(
+            self._resolve_doctor(
+                doctor_name,
+            ),
+            self._resolve_patient(
+                patient_name,
+            ),
+        )
+
+        doctor, doctor_error = doctor_result
+        patient, patient_error = patient_result
+
         if doctor_error:
             return doctor_error
 
-        patient, patient_error = await self._resolve_patient(patient_name)
         if patient_error:
             return patient_error
 
