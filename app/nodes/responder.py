@@ -1,7 +1,7 @@
 from typing import Any
 
 from app.graph.state import AgentState
-from app.utils.logger import compact, get_logger
+from app.utils.logger import compact, get_logger, log_text
 
 
 logger = get_logger("responder")
@@ -137,17 +137,29 @@ def format_appointment_references(
     )
 
 
-async def responder(state: AgentState) -> AgentState:
-    request_id = state.get("request_id", "sin-request-id")
-    intent = state.get("intent", "unknown")
-    result = state.get("tool_result")
+async def responder(
+    state: AgentState,
+) -> AgentState:
+    request_id = state.get(
+        "request_id",
+        "sin-request-id",
+    )
+
+    intent = state.get(
+        "intent",
+        "unknown",
+    )
+
+    result = state.get(
+        "tool_result",
+    )
 
     logger.info(
-        "[%s] RESPONDER iniciado. intent=%s tool=%s result=%s",
+        "[%s] RESPONDER iniciado. "
+        "intent=%s tool=%s",
         request_id,
         intent,
         state.get("tool"),
-        compact(result, 8000),
     )
 
     handlers = {
@@ -157,54 +169,86 @@ async def responder(state: AgentState) -> AgentState:
         "list_appointments": respond_list_appointments,
         "cancel_appointment": respond_cancelled_appointment,
         "reschedule_appointment": respond_rescheduled_appointment,
+
         "confirm_appointment": lambda value: respond_status_change(
             value,
             "La cita fue confirmada correctamente.",
         ),
+
         "complete_appointment": lambda value: respond_status_change(
             value,
             "La cita fue marcada como atendida.",
         ),
+
         "mark_appointment_no_show": lambda value: respond_status_change(
             value,
             "Se registró que el paciente no se presentó.",
         ),
     }
 
-    handler = handlers.get(intent)
+    handler = handlers.get(
+        intent,
+    )
 
     if handler:
-        response = handler(result)
+        response = handler(
+            result,
+        )
+
     elif intent == "greeting":
         response = (
             "Hola. Puedo buscar pacientes, consultar disponibilidad, "
             "agendar, consultar, cancelar, reprogramar, confirmar y "
             "actualizar el estado de las citas."
         )
+
     elif intent == "search_document":
         response = str(
-            result or "No encontré información en los documentos."
+            result
+            or "No encontré información en los documentos."
         )
+
     else:
         response = (
-            "Todavía no puedo realizar esa operación. Puedo buscar "
-            "pacientes y administrar citas del consultorio."
+            "Todavía no puedo realizar esa operación. "
+            "Puedo buscar pacientes y administrar citas "
+            "del consultorio."
         )
 
     state["response"] = response
 
-    logger.info(
-        "[%s] RESPONDER terminó. response=%r errors=%s",
-        request_id,
-        response,
-        state.get("errors", []),
-    )
-
-    state.setdefault("history", []).append(
+    state.setdefault(
+        "history",
+        [],
+    ).append(
         {
-            "user": state.get("message", ""),
+            "user": state.get(
+                "message",
+                "",
+            ),
             "assistant": response,
         }
+    )
+
+    logger.info(
+        "[%s] RESPONDER terminó.\n"
+        "response=\n%s\n"
+        "errors=%s",
+        request_id,
+        log_text(
+            state.get(
+                "response",
+                "",
+            ),
+            4000,
+        ),
+        compact(
+            state.get(
+                "errors",
+                [],
+            ),
+            2000,
+        ),
     )
 
     return state

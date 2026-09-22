@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
     OLLAMA_MODEL: str = "qwen3:8b"
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
 
     model_config = SettingsConfigDict(
         env_file=".env",

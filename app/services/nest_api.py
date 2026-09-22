@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 import httpx
@@ -7,6 +8,10 @@ from app.utils.logger import (
     compact,
     exception_chain,
     get_logger,
+    elapsed_ms,
+    get_request_id,
+    log_text,
+    pretty_log,
 )
 
 
@@ -71,14 +76,24 @@ class NestAPIClient:
     ) -> Any:
         url = self._build_url(endpoint)
 
+        request_id = get_request_id()
+        started_at = time.perf_counter()
+
+        status: int | str = "not_sent"
+
         logger.info(
-            "HTTP %s %s params=%s body=%s",
+            "HTTP %s %s\nparams=\n%s\nbody=\n%s",
             method,
             url,
-            compact(params or {}, 2000),
-            compact(body or {}, 5000),
+            pretty_log(
+                params or {},
+                2000,
+            ),
+            pretty_log(
+                body or {},
+                5000,
+            ),
         )
-
         try:
             async with httpx.AsyncClient(
                 timeout=self.timeout,
@@ -90,16 +105,28 @@ class NestAPIClient:
                     json=body if body is not None else None,
                 )
 
+            status = response.status_code
+
             logger.info(
                 "HTTP %s %s -> status=%s",
                 method,
                 str(response.request.url),
                 response.status_code,
             )
+
+            try:
+                debug_body = response.json()
+        
+            except ValueError:
+                debug_body = response.text
+
             logger.debug(
-                "HTTP %s response body=%s",
+                "HTTP %s response body:\n%s",
                 method,
-                compact(response.text, 7000),
+                pretty_log(
+                    debug_body,
+                    7000,
+                ),
             )
 
             response.raise_for_status()
@@ -110,6 +137,8 @@ class NestAPIClient:
             return response.json()
 
         except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+
             detail = self._get_error_detail(
                 exc.response,
             )
@@ -130,6 +159,8 @@ class NestAPIClient:
             ) from exc
 
         except httpx.RequestError as exc:
+            status = "network_error"
+
             logger.exception(
                 "Error de conexión con NestJS. method=%s url=%s cadena=%s",
                 method,
@@ -143,6 +174,12 @@ class NestAPIClient:
             ) from exc
 
         except ValueError as exc:
+            status = (
+                status
+                if status != "not_sent"
+                else "invalid_json"
+            )
+
             logger.exception(
                 "NestJS respondió contenido que no es JSON. "
                 "method=%s url=%s cadena=%s",
@@ -150,9 +187,21 @@ class NestAPIClient:
                 url,
                 exception_chain(exc),
             )
+
             raise NestAPIError(
                 "NestJS devolvió una respuesta que no es JSON."
             ) from exc
+
+        finally:
+            logger.info(
+                "[%s] [PERF] http.nest elapsed_ms=%.2f "
+                "method=%s endpoint=%s status=%s",
+                request_id,
+                elapsed_ms(started_at),
+                method,
+                endpoint,
+                status,
+            )
 
     async def search_patients(
         self,
