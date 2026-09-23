@@ -26,6 +26,10 @@ llm = ChatOllama(
     base_url=settings.OLLAMA_BASE_URL,
     temperature=0,
     format="json",
+
+    reasoning=False,
+    num_predict=settings.OLLAMA_NUM_PREDICT,
+    keep_alive=settings.OLLAMA_KEEP_ALIVE,
 )
 
 parser = JsonOutputParser()
