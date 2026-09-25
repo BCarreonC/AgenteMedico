@@ -1,8 +1,10 @@
 import time
 import uuid
+
 from contextlib import asynccontextmanager
 
 import httpx
+from app.services.llm import warmup_llm
 from fastapi import FastAPI
 
 from app.config.settings import settings
@@ -17,6 +19,8 @@ from app.utils.logger import (
     reset_request_id,
     set_request_id,
 )
+
+
 
 
 logger = get_logger("main")
@@ -68,7 +72,6 @@ async def check_dependency(
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    logger.info("========== INICIANDO MEDICAL AGENT ==========")
     logger.info("NEST_API=%s", settings.NEST_API)
     logger.info("APP_TIMEZONE=%s", settings.APP_TIMEZONE)
     logger.info("OLLAMA_BASE_URL=%s", settings.OLLAMA_BASE_URL)
@@ -82,6 +85,11 @@ async def lifespan(_: FastAPI):
         "Ollama",
         f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/tags",
     )
+
+    # Fuerza la primera carga del modelo
+    await warmup_llm()
+
+    logger.info("========== INICIANDO MEDICAL AGENT ==========")
 
     yield
 

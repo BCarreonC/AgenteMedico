@@ -5,7 +5,7 @@ from typing import Any
 
 
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_ollama import ChatOllama
+from app.services.llm import planner_llm
 
 from app.config.settings import settings
 from app.graph.state import AgentState
@@ -20,13 +20,6 @@ from app.utils.logger import (
 )
 
 logger = get_logger("planner")
-
-llm = ChatOllama(
-    model=settings.OLLAMA_MODEL,
-    base_url=settings.OLLAMA_BASE_URL,
-    temperature=0,
-    format="json",
-)
 
 parser = JsonOutputParser()
 
@@ -147,7 +140,7 @@ MENSAJE ACTUAL:
 
         ollama_started_at = time.perf_counter()
 
-        result = await llm.ainvoke(
+        result = await planner_llm.ainvoke(
             prompt,
         )
 
