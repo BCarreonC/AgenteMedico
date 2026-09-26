@@ -299,17 +299,61 @@ class AppointmentsTool:
         patient_id: str | None = None
         doctor_id: str | None = None
 
-        if patient_name:
-            patient, error = await self._resolve_patient(patient_name)
-            if error:
-                return error
-            patient_id = str(patient["_id"])
+        if patient_name and doctor_name:
 
-        if doctor_name:
-            doctor, error = await self._resolve_doctor(doctor_name)
+            patient_result, doctor_result = await asyncio.gather(
+                self._resolve_patient(
+                    patient_name
+                ),
+                self._resolve_doctor(
+                    doctor_name
+                ),
+            )
+
+            patient, patient_error = patient_result
+            doctor, doctor_error = doctor_result
+
+            if patient_error:
+                return patient_error
+
+            if doctor_error:
+                return doctor_error
+
+            patient_id = str(
+                patient["_id"]
+            )
+
+            doctor_id = str(
+                doctor["_id"]
+            )
+
+
+        elif patient_name:
+
+            patient, error = await self._resolve_patient(
+                patient_name
+            )
+
             if error:
                 return error
-            doctor_id = str(doctor["_id"])
+
+            patient_id = str(
+                patient["_id"]
+            )
+
+
+        elif doctor_name:
+
+            doctor, error = await self._resolve_doctor(
+                doctor_name
+            )
+
+            if error:
+                return error
+
+            doctor_id = str(
+                doctor["_id"]
+            )
 
         appointments = await api.list_appointments(
             patient_id=patient_id,
@@ -525,17 +569,61 @@ class AppointmentsTool:
         patient_id: str | None = None
         doctor_id: str | None = None
 
-        if patient_name:
-            patient, error = await self._resolve_patient(patient_name)
-            if error:
-                return None, error
-            patient_id = str(patient["_id"])
+        if patient_name and doctor_name:
 
-        if doctor_name:
-            doctor, error = await self._resolve_doctor(doctor_name)
+            patient_result, doctor_result = await asyncio.gather(
+                self._resolve_patient(
+                    patient_name
+                ),
+                self._resolve_doctor(
+                    doctor_name
+                ),
+            )
+
+            patient, patient_error = patient_result
+            doctor, doctor_error = doctor_result
+
+            if patient_error:
+                return None, patient_error
+
+            if doctor_error:
+                return None, doctor_error
+
+            patient_id = str(
+                patient["_id"]
+            )
+
+            doctor_id = str(
+                doctor["_id"]
+            )
+
+
+        elif patient_name:
+
+            patient, error = await self._resolve_patient(
+                patient_name
+            )
+
             if error:
                 return None, error
-            doctor_id = str(doctor["_id"])
+
+            patient_id = str(
+                patient["_id"]
+            )
+
+
+        elif doctor_name:
+
+            doctor, error = await self._resolve_doctor(
+                doctor_name
+            )
+
+            if error:
+                return None, error
+
+            doctor_id = str(
+                doctor["_id"]
+            )
 
         appointments = await api.list_appointments(
             patient_id=patient_id,
