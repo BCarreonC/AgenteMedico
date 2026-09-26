@@ -4,7 +4,7 @@ import unicodedata
 from typing import Any, Awaitable, Callable
 
 from app.services.nest_api import (
-    NestAPIClient,
+    nest_api as api,
     NestAPIError,
 )
 from app.utils.logger import (
@@ -14,9 +14,7 @@ from app.utils.logger import (
     pretty_log,
 )
 
-
 logger = get_logger("appointments_tool")
-api = NestAPIClient()
 
 ACTIVE_APPOINTMENT_STATUSES = {
     "scheduled",

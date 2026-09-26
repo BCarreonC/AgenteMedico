@@ -1,7 +1,4 @@
-from app.services.nest_api import NestAPIClient
-
-api = NestAPIClient()
-
+from app.services.nest_api import nest_api as api
 
 class ConsultationsTool:
 

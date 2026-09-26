@@ -25,12 +25,32 @@ class NestAPIError(RuntimeError):
 class NestAPIClient:
     def __init__(self) -> None:
         self.base_url = settings.NEST_API.rstrip("/")
-        self.timeout = 15.0
+
+        self.timeout = settings.NEST_TIMEOUT_SECONDS
+
+        self.client = httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                self.timeout,
+                connect=5.0,
+            ),
+            limits=httpx.Limits(
+                max_connections=20,
+                max_keepalive_connections=10,
+            ),
+        )
+
 
         logger.info(
             "NestAPIClient configurado base_url=%s timeout=%ss",
             self.base_url,
             self.timeout,
+        )
+
+    async def close(self) -> None:
+        await self.client.aclose()
+
+        logger.info(
+            "NestAPIClient cerrado"
         )
 
     async def get(
@@ -95,15 +115,12 @@ class NestAPIClient:
             ),
         )
         try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-            ) as client:
-                response = await client.request(
-                    method,
-                    url,
-                    params=params,
-                    json=body if body is not None else None,
-                )
+            response = await self.client.request(
+                method,
+                url,
+                params=params,
+                json=body if body is not None else None,
+            )
 
             status = response.status_code
 
@@ -404,3 +421,5 @@ class NestAPIClient:
 
         except ValueError:
             return response.text or "Error sin detalle"
+
+nest_api = NestAPIClient()

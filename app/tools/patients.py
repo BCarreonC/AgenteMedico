@@ -1,7 +1,7 @@
 from typing import Any
 
 from app.services.nest_api import (
-    NestAPIClient,
+    nest_api as api,
     NestAPIError,
 )
 from app.utils.logger import (
@@ -10,10 +10,7 @@ from app.utils.logger import (
     get_logger,
 )
 
-
 logger = get_logger("patients_tool")
-api = NestAPIClient()
-
 
 class PatientsTool:
     async def execute(
