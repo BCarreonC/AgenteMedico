@@ -7,6 +7,7 @@ from pydantic_settings import (
 class Settings(BaseSettings):
     #API
     NEST_API: str = "http://127.0.0.1:3000/api"
+    NEST_TIMEOUT_SECONDS: float = 15.0
 
     #APP
     APP_TIMEZONE: str = "America/Mexico_City"

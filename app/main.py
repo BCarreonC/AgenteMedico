@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from app.services.llm import warmup_llm
+from app.services.nest_api import nest_api
 from fastapi import FastAPI
 
 from app.config.settings import settings
@@ -90,10 +91,14 @@ async def lifespan(_: FastAPI):
     await warmup_llm()
 
     logger.info("========== INICIANDO MEDICAL AGENT ==========")
+    
+    try:
+        yield
 
-    yield
+    finally:
+        await nest_api.close()
 
-    logger.info("========== DETENIENDO MEDICAL AGENT ==========")
+        logger.info("========== DETENIENDO MEDICAL AGENT ==========")
 
 
 app = FastAPI(
