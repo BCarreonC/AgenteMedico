@@ -10,6 +10,7 @@ from app.services.llm import planner_llm
 from app.config.settings import settings
 from app.graph.state import AgentState
 from app.prompts.system_prompt import SYSTEM_PROMPT
+from app.utils.text_normalizer import normalize_text, normalize_key
 from app.utils.logger import (
     compact,
     exception_chain,
@@ -215,12 +216,14 @@ MENSAJE ACTUAL:
             ),
         )
 
-        raw_intent = str(
-            data.get(
-                "intent",
-                "unknown",
-            )
-        ).strip().lower()
+        raw_intent = normalize_key(
+            str(
+                data.get(
+                    "intent",
+                    "unknown",
+                )
+            ).strip().lower()
+        )
 
         intent = INTENT_ALIASES.get(
             raw_intent,
@@ -403,32 +406,40 @@ def normalize_entities(
             normalized[boolean_key],
             str,
         ):
-            normalized[boolean_key] = normalized[boolean_key].strip().lower() in {
+            normalized[boolean_key] = normalize_text(
+            normalized[boolean_key]
+            ) in {
                 "true",
                 "1",
                 "yes",
                 "si",
-                "sí",
             }
-
+            
     if "status" in normalized:
         status_aliases = {
             "programada": "scheduled",
             "programado": "scheduled",
             "pendiente": "scheduled",
+
             "confirmada": "confirmed",
             "confirmado": "confirmed",
+
             "cancelada": "cancelled",
             "cancelado": "cancelled",
+
             "completada": "completed",
             "completado": "completed",
             "atendida": "completed",
             "atendido": "completed",
-            "no se presentó": "no_show",
+
             "no se presento": "no_show",
             "inasistencia": "no_show",
         }
-        raw_status = str(normalized["status"]).strip().lower()
+        raw_status = normalize_text(
+            str(
+                normalized["status"]
+                ).strip().lower()
+            )
         normalized["status"] = status_aliases.get(raw_status, raw_status)
 
     return normalized

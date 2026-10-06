@@ -1,7 +1,7 @@
 import re
 import asyncio
-import unicodedata
 from typing import Any, Awaitable, Callable
+from app.utils.text_normalizer import normalize_text
 
 from app.services.nest_api import (
     nest_api as api,
@@ -786,12 +786,12 @@ class AppointmentsTool:
         target: str,
         name_getter,
     ) -> dict[str, Any] | None:
-        normalized_target = self._normalize(target)
+        normalized_target = normalize_text(target)
 
         matches = [
             record
             for record in records
-            if self._normalize(name_getter(record)) == normalized_target
+            if normalize_text(name_getter(record)) == normalized_target
         ]
 
         return matches[0] if len(matches) == 1 else None
@@ -865,13 +865,7 @@ class AppointmentsTool:
 
     @staticmethod
     def _normalize(value: str) -> str:
-        normalized = unicodedata.normalize("NFD", value)
-        normalized = "".join(
-            character
-            for character in normalized
-            if unicodedata.category(character) != "Mn"
-        )
-        return " ".join(normalized.lower().strip().split())
+        return normalize_text(value)
 
     @staticmethod
     def _is_valid_date(value: str) -> bool:
