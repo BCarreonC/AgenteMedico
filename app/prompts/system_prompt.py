@@ -51,6 +51,14 @@ REGLAS:
 - duration_minutes debe ser entero.
 - Si falta información, omite el campo.
 - entities siempre debe ser un objeto.
+- Interpreta palabras escritas con o sin tilde como equivalentes
+  cuando el contexto indique el mismo significado.
+  Ejemplos: medico/médico, proximas/próximas,
+  presento/presentó, si/sí.
+- Conserva los nombres propios tal como aparezcan en el mensaje
+  del usuario al extraer entidades.
+- En doctor_name devuelve únicamente el nombre de la persona.
+  No incluyas títulos como doctor, doctora, Dr., Dra., médico o médica.
 
 INTERPRETACIÓN:
 
