@@ -187,6 +187,19 @@ class AppointmentsTool:
         if not self._is_valid_date(date):
             return self._invalid_date()
 
+        if self._is_past_time_today(
+            date,
+            start_time,
+        ):
+            return {
+                "ok": False,
+                "error": "past_date",
+                "message": (
+                    "No es posible agendar una cita "
+                    "en una hora que ya pasó."
+                ),
+            }
+
         if self._is_past_date(date):
             return {
                 "ok": False,
@@ -452,6 +465,19 @@ class AppointmentsTool:
 
         if not self._is_valid_time(new_start_time):
             return self._invalid_time("La nueva hora")
+
+        if self._is_past_time_today(
+            new_date,
+            new_start_time,
+        ):
+            return {
+                "ok": False,
+                "error": "past_date",
+                "message": (
+                    "No es posible reprogramar una cita "
+                    "a una hora que ya pasó."
+                ),
+            }
 
         duration = self._get_duration(data.get("duration_minutes", 30))
         if duration is None:
@@ -884,6 +910,25 @@ class AppointmentsTool:
     @staticmethod
     def _is_valid_time(value: str) -> bool:
         return bool(re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value))
+
+    
+    @staticmethod
+    def _is_past_time_today(
+        date_value: str,
+        time_value: str,
+    ) -> bool:
+        now = datetime.now(
+            ZoneInfo(settings.APP_TIMEZONE)
+        )
+
+        today = now.date().isoformat()
+        current_time = now.strftime("%H:%M")
+
+        return (
+            date_value == today
+            and time_value <= current_time
+        )
+
 
     @staticmethod
     def _get_duration(value: Any) -> int | None:
