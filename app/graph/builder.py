@@ -2,7 +2,6 @@ import time
 from langgraph.graph import END, StateGraph
 
 from app.graph.state import AgentState
-from app.memory.memory import memory
 from app.nodes.planner import planner
 from app.nodes.rag_node import rag_node
 from app.nodes.responder import responder
@@ -185,6 +184,12 @@ builder.add_edge(
     END,
 )
 
-graph = builder.compile(
-    checkpointer=memory,
-)
+
+def build_graph(checkpointer):
+    """
+    Compila el grafo utilizando un checkpointer
+    que permanece abierto durante la vida de FastAPI.
+    """
+    return builder.compile(
+        checkpointer=checkpointer,
+    )
