@@ -5,11 +5,12 @@ from contextlib import asynccontextmanager
 
 import httpx
 from app.services.llm import warmup_llm
+from app.graph.builder import build_graph
+from app.memory.memory import open_checkpointer
 from app.services.nest_api import nest_api
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from app.config.settings import settings
-from app.graph.builder import graph
 from app.schemas.request import ChatRequest
 from app.utils.logger import (
     compact,
@@ -71,34 +72,51 @@ async def check_dependency(
         )
 
 
+
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
+    logger.info(
+        "========== INICIANDO MEDICAL AGENT =========="
+    )
+
     logger.info("NEST_API=%s", settings.NEST_API)
     logger.info("APP_TIMEZONE=%s", settings.APP_TIMEZONE)
     logger.info("OLLAMA_BASE_URL=%s", settings.OLLAMA_BASE_URL)
     logger.info("OLLAMA_MODEL=%s", settings.OLLAMA_MODEL)
 
-    await check_dependency(
-        "NestJS",
-        f"{settings.NEST_API.rstrip('/')}/health",
-    )
-    await check_dependency(
-        "Ollama",
-        f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/tags",
-    )
+    async with open_checkpointer() as checkpointer:
 
-    # Fuerza la primera carga del modelo
-    await warmup_llm()
+        # Crear el grafo una sola vez con persistencia.
+        app.state.graph = build_graph(
+            checkpointer
+        )
 
-    logger.info("========== INICIANDO MEDICAL AGENT ==========")
-    
-    try:
-        yield
+        try:
+            await check_dependency(
+                "NestJS",
+                f"{settings.NEST_API.rstrip('/')}/health",
+            )
 
-    finally:
-        await nest_api.close()
+            await check_dependency(
+                "Ollama",
+                f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/tags",
+            )
 
-        logger.info("========== DETENIENDO MEDICAL AGENT ==========")
+            # Mantener el warm-up existente.
+            await warmup_llm()
+
+            logger.info(
+                "[STARTUP] Grafo preparado con memoria persistente"
+            )
+
+            yield
+
+        finally:
+            await nest_api.close()
+
+            logger.info(
+                "========== DETENIENDO MEDICAL AGENT =========="
+            )
 
 
 app = FastAPI(
@@ -119,6 +137,7 @@ async def health() -> dict[str, str]:
 @app.post("/chat")
 async def chat(
     request: ChatRequest,
+    http_request: Request,
 ) -> dict:
     session_id = (
         request.session_id
@@ -138,7 +157,6 @@ async def chat(
     state = {
         "request_id": request_id,
         "message": request.message,
-        "history": [],
         "intent": "",
         "confidence": 0.0,
         "entities": {},
@@ -152,6 +170,8 @@ async def chat(
     try:
         graph_started_at = time.perf_counter()
 
+        graph = http_request.app.state.graph
+        
         result = await graph.ainvoke(
             state,
             config={

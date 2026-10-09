@@ -91,18 +91,36 @@ async def planner(
         state.get("message", ""),
     )
 
-    history_text = ""
+    
+    history = state.get("history") or []
 
-    for item in state.get(
-        "history",
-        [],
-    ):
-        history_text += (
-            f"Usuario: "
-            f"{item.get('user', '')}\n"
-            f"Asistente: "
-            f"{item.get('assistant', '')}\n\n"
+    history_limit = max(
+        0,
+        settings.PLANNER_HISTORY_TURNS,
+    )
+
+    recent_history = (
+        history[-history_limit:]
+        if history_limit > 0
+        else []
+    )
+
+    history_text = "\n\n".join(
+        (
+            f"Usuario: {item.get('user', '')}\n"
+            f"Asistente: {item.get('assistant', '')}"
         )
+        for item in recent_history
+    )
+
+    logger.debug(
+        "[%s] PLANNER historial "
+        "total_turns=%s included_turns=%s",
+        request_id,
+        len(history),
+        len(recent_history),
+    )
+
 
     current_date = (
         datetime.now(ZoneInfo(settings.APP_TIMEZONE))

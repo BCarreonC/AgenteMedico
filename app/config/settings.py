@@ -31,5 +31,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # MEMORY
+    CHECKPOINT_DB_PATH: str = "data/checkpoints.sqlite3"
+
+    # PLANNER
+    PLANNER_HISTORY_TURNS: int = 3
+
 
 settings = Settings()

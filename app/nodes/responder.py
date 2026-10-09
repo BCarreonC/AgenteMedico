@@ -215,20 +215,21 @@ async def responder(
             "del consultorio."
         )
 
+    
     state["response"] = response
 
-    state.setdefault(
-        "history",
-        [],
-    ).append(
-        {
-            "user": state.get(
-                "message",
-                "",
-            ),
-            "assistant": response,
-        }
-    )
+    previous_history = state.get("history") or []
+
+    new_turn = {
+        "user": state.get("message", ""),
+        "assistant": response,
+    }
+
+    state["history"] = [
+            *previous_history,
+            new_turn,
+    ]
+
 
     logger.info(
         "[%s] RESPONDER terminó.\n"
